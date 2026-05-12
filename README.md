@@ -48,7 +48,7 @@ Run the smallest PDF first:
 conda activate lammaindex-rag
 source ~/.config/lammarag_benchmark/env.sh
 
-export INPUT_DIR='/path/to/pdf_dir'
+export INPUT_DIR='/mnt/lustre/share_data/zhangyc/afs_space/datasets/data/quantum/rawdata/城市设计-详规处/01-原文文件'
 export RUN_DIR="runs/smoke_$(date +%Y%m%d_%H%M%S)"
 
 python ingest_benchmark.py \
