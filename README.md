@@ -39,6 +39,7 @@ EOF
 chmod 600 ~/.config/lammarag_benchmark/env.sh
 source ~/.config/lammarag_benchmark/env.sh
 ```
+❗修改这里的 your_siliconflow_key 和 your_mineru_token 
 
 ## Smoke Test
 
