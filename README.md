@@ -16,17 +16,13 @@ No local MinerU model or OpenAI SDK is required.
 git clone https://github.com/R1card0pause/lammaindex-rag.git
 cd lammaindex-rag
 
-conda create -y -n lammaindex-rag
+conda create -y -n lammaindex-rag \
+  -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
 conda activate lammaindex-rag
-conda install -y python=3.10 pip
+conda install -y python=3.10 pip \
+  -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main
 
 python -m pip install -U pip
-python -m pip install -r requirements.txt
-```
-
-If the default PyPI source is unavailable, use a mirror:
-
-```bash
 python -m pip install -r requirements.txt \
   -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
@@ -105,4 +101,3 @@ curl -X POST http://127.0.0.1:18080/query \
   -H "Content-Type: application/json" \
   -d '{"question":"上海市城乡规划条例适用于哪些活动？","top_k":3}'
 ```
-
