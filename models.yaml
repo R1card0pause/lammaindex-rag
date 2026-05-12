@@ -1,0 +1,64 @@
+llm:
+  source: siliconflow
+  type: llm
+  model: deepseek-ai/DeepSeek-V4-Flash
+  api_key: ${LAZYLLM_SILICONFLOW_API_KEY}
+
+llm_instruct:
+  source: siliconflow
+  type: llm
+  model: deepseek-ai/DeepSeek-V4-Flash
+  api_key: ${LAZYLLM_SILICONFLOW_API_KEY}
+
+evo_llm:
+  source: siliconflow
+  type: llm
+  model: deepseek-ai/DeepSeek-V4-Flash
+  api_key: ${LAZYLLM_SILICONFLOW_API_KEY}
+
+evo_embed:
+  source: siliconflow
+  type: embed
+  model: Qwen/Qwen3-Embedding-0.6B
+  api_key: ${LAZYLLM_SILICONFLOW_API_KEY}
+  num_worker: 5
+  index_kwargs:
+    index_type: IVF_FLAT
+    metric_type: COSINE
+    params:
+      nlist: 128
+
+reranker:
+  source: siliconflow
+  type: rerank
+  model: Qwen/Qwen3-Reranker-0.6B
+  api_key: ${LAZYLLM_SILICONFLOW_API_KEY}
+
+embeddings:
+  embed_1:
+    source: siliconflow
+    type: embed
+    model: Qwen/Qwen3-Embedding-0.6B
+    api_key: ${LAZYLLM_SILICONFLOW_API_KEY}
+    num_worker: 5
+    index_kwargs:
+      index_type: IVF_FLAT
+      metric_type: COSINE
+      params:
+        nlist: 128
+
+  embed_2:
+    source: siliconflow
+    type: embed
+    model: Qwen/Qwen3-Embedding-0.6B
+    api_key: ${LAZYLLM_SILICONFLOW_API_KEY}
+    num_worker: 5
+    index_kwargs:
+      index_type: IVF_FLAT
+      metric_type: COSINE
+      params:
+        nlist: 128
+
+retrieval:
+  temp_doc_embed_key: embed_1
+  file_search_embed_key: embed_1
