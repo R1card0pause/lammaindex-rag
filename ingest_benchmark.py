@@ -6,7 +6,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import time
 import zipfile
@@ -24,10 +23,7 @@ from llama_index.core.node_parser import SentenceSplitter
 from pydantic import PrivateAttr
 
 
-DEFAULT_INPUT_DIR = Path(
-    "/mnt/lustre/share_data/zhangyc/afs_space/datasets/data/quantum/rawdata/"
-    "城市设计-详规处/01-原文文件"
-)
+DEFAULT_INPUT_DIR = Path("./pdfs")
 SILICONFLOW_BASE_URL = "https://api.siliconflow.cn/v1"
 MINERU_API_BASE_URL = "https://mineru.net/api/v4"
 
@@ -197,93 +193,6 @@ def split_pdf_inputs(pdfs: list[Path], max_size_mb: int, splits_root: Path | Non
     for pdf in pdfs:
         parts.extend(split_large_pdf(pdf, max_size_mb=max_size_mb, splits_root=splits_root))
     return parts
-
-
-def find_markdown_files(root: Path) -> list[Path]:
-    files = sorted(root.rglob("*.md"))
-    return [p for p in files if p.is_file() and p.stat().st_size > 0]
-
-
-def run_mineru(
-    pdf: Path,
-    parse_root: Path,
-    force: bool,
-    mineru_backend: str,
-    mineru_method: str,
-) -> ParseResult:
-    started = now()
-    out_dir = parse_root / safe_stem(pdf)
-    if force and out_dir.exists():
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    existing = find_markdown_files(out_dir)
-    if existing:
-        return ParseResult(
-            pdf=str(pdf),
-            output_dir=str(out_dir),
-            markdown_files=[str(p) for p in existing],
-            seconds=now() - started,
-            ok=True,
-        )
-
-    mineru = shutil.which("mineru") or shutil.which("magic-pdf")
-    if not mineru:
-        return ParseResult(str(pdf), str(out_dir), [], now() - started, False, "mineru not found")
-
-    attempts = [
-        [
-            mineru,
-            "-p",
-            str(pdf),
-            "-o",
-            str(out_dir),
-            "--backend",
-            mineru_backend,
-            "--method",
-            mineru_method,
-        ],
-    ]
-    last_error = ""
-    for cmd in attempts:
-        proc = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        (out_dir / "mineru.stdout.log").write_text(proc.stdout, encoding="utf-8", errors="ignore")
-        if proc.returncode == 0:
-            md_files = find_markdown_files(out_dir)
-            if md_files:
-                return ParseResult(
-                    pdf=str(pdf),
-                    output_dir=str(out_dir),
-                    markdown_files=[str(p) for p in md_files],
-                    seconds=now() - started,
-                    ok=True,
-                )
-            last_error = "mineru finished but no markdown file was produced"
-        else:
-            last_error = proc.stdout[-4000:]
-
-    return ParseResult(str(pdf), str(out_dir), [], now() - started, False, last_error)
-
-
-def make_documents(results: list[ParseResult]) -> list[Document]:
-    docs: list[Document] = []
-    for result in results:
-        for md in result.markdown_files:
-            md_path = Path(md)
-            text = md_path.read_text(encoding="utf-8", errors="ignore").strip()
-            if not text:
-                continue
-            docs.append(
-                Document(
-                    text=text,
-                    metadata={
-                        "source_pdf": result.pdf,
-                        "markdown_file": str(md_path),
-                        "parse_seconds": result.seconds,
-                    },
-                )
-            )
-    return docs
 
 
 def read_pdfs_with_pypdf(pdfs: list[Path]) -> tuple[list[Document], list[ParseResult]]:
@@ -512,12 +421,10 @@ def main() -> int:
     parser.add_argument("--embed-key", default="embed_1")
     parser.add_argument("--max-files", type=int, default=None)
     parser.add_argument("--smallest-first", action="store_true")
-    parser.add_argument("--parse-workers", type=int, default=0)
     parser.add_argument("--chunk-size", type=int, default=1024)
     parser.add_argument("--chunk-overlap", type=int, default=120)
-    parser.add_argument("--force-parse", action="store_true")
     parser.add_argument("--parse-only", action="store_true")
-    parser.add_argument("--pdf-reader", choices=["mineru", "mineru-api", "pypdf"], default="mineru")
+    parser.add_argument("--pdf-reader", choices=["mineru-api", "pypdf"], default="mineru-api")
     parser.add_argument("--mineru-api-model", default="vlm")
     parser.add_argument("--mineru-api-ocr", action="store_true")
     parser.add_argument("--mineru-api-disable-formula", action="store_true")
@@ -527,8 +434,6 @@ def main() -> int:
     parser.add_argument("--mineru-api-batch-size", type=int, default=50)
     parser.add_argument("--mineru-api-upload-workers", type=int, default=8)
     parser.add_argument("--mineru-api-max-size-mb", type=int, default=200)
-    parser.add_argument("--mineru-backend", default="pipeline")
-    parser.add_argument("--mineru-method", default="auto")
     args = parser.parse_args()
 
     work_dir = args.work_dir.resolve()
@@ -551,18 +456,12 @@ def main() -> int:
             splits_root=work_dir / "pdf_splits",
         )
 
-    parse_workers = args.parse_workers or min(len(pdfs), os.cpu_count() or 4)
-    parse_workers = max(1, parse_workers)
-
     summary: dict[str, Any] = {
         "input_dir": str(args.input_dir),
         "work_dir": str(work_dir),
         "pdf_count": len(pdfs),
         "pdf_part_count": len(pdf_parts),
-        "parse_workers": parse_workers,
         "embedding_model": None if args.parse_only else args.embed_key,
-        "mineru_backend": args.mineru_backend,
-        "mineru_method": args.mineru_method,
         "mineru_api_batch_size": args.mineru_api_batch_size if args.pdf_reader == "mineru-api" else None,
         "mineru_api_upload_workers": args.mineru_api_upload_workers if args.pdf_reader == "mineru-api" else None,
         "mineru_api_max_size_mb": args.mineru_api_max_size_mb if args.pdf_reader == "mineru-api" else None,
@@ -578,7 +477,7 @@ def main() -> int:
             write_event(log_path, {"event": "parse_file", **asdict(result)})
             status = "OK" if result.ok else "FAIL"
             print(f"[parse:pypdf] {status} {Path(result.pdf).name} {result.seconds:.2f}s", flush=True)
-    elif args.pdf_reader == "mineru-api":
+    else:
         token = os.environ.get("MINERU_API_TOKEN")
         if not token:
             raise RuntimeError("Missing MINERU_API_TOKEN")
@@ -599,28 +498,6 @@ def main() -> int:
             write_event(log_path, {"event": "parse_file", **asdict(result)})
             status = "OK" if result.ok else "FAIL"
             print(f"[parse:mineru-api] {status} {Path(result.pdf).name} {result.seconds:.2f}s", flush=True)
-    else:
-        parse_results = []
-        with futures.ThreadPoolExecutor(max_workers=parse_workers) as pool:
-            future_map = {
-                pool.submit(
-                    run_mineru,
-                    pdf,
-                    parse_dir,
-                    args.force_parse,
-                    args.mineru_backend,
-                    args.mineru_method,
-                ): pdf
-                for pdf in pdfs
-            }
-            for fut in futures.as_completed(future_map):
-                result = fut.result()
-                parse_results.append(result)
-                write_event(log_path, {"event": "parse_file", **asdict(result)})
-                status = "OK" if result.ok else "FAIL"
-                print(f"[parse] {status} {Path(result.pdf).name} {result.seconds:.2f}s", flush=True)
-
-        documents = make_documents(parse_results)
 
     parse_seconds = now() - parse_started
     failed = [r for r in parse_results if not r.ok]
